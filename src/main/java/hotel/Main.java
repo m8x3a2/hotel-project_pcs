@@ -12,7 +12,9 @@ import hotel.service.BookingService;
 import hotel.service.UserService;
 import hotel.util.DatabaseManager;
 import hotel.util.ExcelExporter;
+import hotel.util.Validator;
 
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -20,7 +22,11 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.UnaryOperator;
 
 /**
  * Консольная информационная система "Гостиница: бронирование номеров".
@@ -29,7 +35,9 @@ import java.util.Scanner;
  */
 public class Main {
 
-    private static final Scanner scanner = new Scanner(System.in);
+    // Читаем ввод в кодировке консоли (в Windows это часто cp866/cp1251, а не UTF-8),
+    // иначе русские буквы в ФИО превратятся в "кракозябры" и не пройдут проверку.
+    private static final Scanner scanner = new Scanner(System.in, consoleCharset());
 
     private static final UserRepository userRepository = new UserRepository();
     private static final BookingRepository bookingRepository = new BookingRepository();
@@ -47,7 +55,12 @@ public class Main {
             return;
         }
 
-        mainMenu();
+        try {
+            mainMenu();
+        } catch (NoSuchElementException e) {
+            // Поток ввода закрыт (Ctrl+Z / Ctrl+D или конец файла при перенаправлении ввода)
+            System.out.println("\nВвод завершён.");
+        }
         System.out.println("Работа программы завершена. До свидания!");
     }
 
@@ -113,10 +126,10 @@ public class Main {
     }
 
     private static void createGuest() throws SQLException {
-        String fullName = readNonEmptyString("Введите ФИО гостя: ");
-        String phone = readNonEmptyString("Введите телефон: ");
-        String email = readNonEmptyString("Введите email: ");
-        String passport = readNonEmptyString("Введите номер паспорта: ");
+        String fullName = readValidString("Введите ФИО гостя (например, Иванов Иван Иванович): ", Validator::validateFullName);
+        String phone = readValidString("Введите телефон (например, +7 900 123-45-67): ", Validator::validatePhone);
+        String email = readValidString("Введите email (например, ivanov@mail.ru): ", Validator::validateEmail);
+        String passport = readValidString("Введите номер паспорта (серия и номер, например 4500 123456): ", Validator::validatePassport);
 
         User user = userService.createUser(fullName, phone, email, passport);
         System.out.println("Гость успешно добавлен: " + user);
@@ -126,10 +139,10 @@ public class Main {
         int id = readInt("Введите ID гостя, которого нужно изменить: ");
         System.out.println("Текущие данные: " + userService.getUserById(id));
 
-        String fullName = readNonEmptyString("Новое ФИО: ");
-        String phone = readNonEmptyString("Новый телефон: ");
-        String email = readNonEmptyString("Новый email: ");
-        String passport = readNonEmptyString("Новый номер паспорта: ");
+        String fullName = readValidString("Новое ФИО: ", Validator::validateFullName);
+        String phone = readValidString("Новый телефон: ", Validator::validatePhone);
+        String email = readValidString("Новый email: ", Validator::validateEmail);
+        String passport = readValidString("Новый номер паспорта: ", Validator::validatePassport);
 
         userService.updateUser(id, fullName, phone, email, passport);
         System.out.println("Данные гостя обновлены.");
@@ -169,11 +182,13 @@ public class Main {
     }
 
     private static void createBooking() throws SQLException {
-        int userId = readInt("Введите ID гостя: ");
-        int roomNumber = readInt("Введите номер комнаты: ");
+        int userId = readValidInt("Введите ID гостя: ", id -> Validator.validateId(id, "гостя"));
+        int roomNumber = readValidInt("Введите номер комнаты (101-999, например 205): ", Validator::validateRoomNumber);
         RoomType roomType = readRoomType();
-        LocalDate checkIn = readDate("Введите дату заезда (гггг-мм-дд): ");
-        LocalDate checkOut = readDate("Введите дату выезда (гггг-мм-дд): ");
+        LocalDate checkIn = readValidDate("Введите дату заезда (гггг-мм-дд): ",
+                date -> Validator.validateCheckInForNewBooking(date, LocalDate.now()));
+        LocalDate checkOut = readValidDate("Введите дату выезда (гггг-мм-дд): ",
+                date -> Validator.validateStayDates(checkIn, date));
 
         Booking booking = bookingService.createBooking(userId, roomNumber, roomType, checkIn, checkOut);
         System.out.println("Бронирование успешно создано: " + booking);
@@ -181,12 +196,14 @@ public class Main {
 
     private static void updateBooking() throws SQLException {
         int id = readInt("Введите ID бронирования для изменения: ");
-        System.out.println("Текущие данные: " + bookingService.getBookingById(id));
+        // Сразу проверяем, что бронь можно менять, чтобы не заставлять вводить все поля зря
+        System.out.println("Текущие данные: " + bookingService.getEditableBooking(id));
 
-        int roomNumber = readInt("Новый номер комнаты: ");
+        int roomNumber = readValidInt("Новый номер комнаты: ", Validator::validateRoomNumber);
         RoomType roomType = readRoomType();
         LocalDate checkIn = readDate("Новая дата заезда (гггг-мм-дд): ");
-        LocalDate checkOut = readDate("Новая дата выезда (гггг-мм-дд): ");
+        LocalDate checkOut = readValidDate("Новая дата выезда (гггг-мм-дд): ",
+                date -> Validator.validateStayDates(checkIn, date));
 
         bookingService.updateBooking(id, roomNumber, roomType, checkIn, checkOut);
         System.out.println("Бронирование обновлено.");
@@ -312,6 +329,18 @@ public class Main {
 
     // ===================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ВВОДА С ОБРАБОТКОЙ ОШИБОК =====================
 
+    /** Кодировка стандартного ввода: свойство stdin.encoding (Java 25+), затем кодировка консоли, затем системная. */
+    private static Charset consoleCharset() {
+        String stdinEncoding = System.getProperty("stdin.encoding");
+        if (stdinEncoding != null && Charset.isSupported(stdinEncoding)) {
+            return Charset.forName(stdinEncoding);
+        }
+        if (System.console() != null) {
+            return System.console().charset();
+        }
+        return Charset.defaultCharset();
+    }
+
     /** Считывает целое число, повторяя запрос, пока пользователь не введёт корректное значение. */
     private static int readInt(String prompt) {
         while (true) {
@@ -346,6 +375,48 @@ public class Main {
                 return LocalDate.parse(input);
             } catch (DateTimeParseException e) {
                 System.out.println("Ошибка: неверный формат даты. Пример правильного формата: 2026-10-01");
+            }
+        }
+    }
+
+    /**
+     * Считывает строку и сразу проверяет её валидатором (например, Validator::validateEmail).
+     * Если значение некорректно - показывает причину и просит ввести это же поле ещё раз.
+     * Возвращает значение, уже приведённое валидатором к единому формату.
+     */
+    private static String readValidString(String prompt, UnaryOperator<String> validator) {
+        while (true) {
+            String input = readNonEmptyString(prompt);
+            try {
+                return validator.apply(input);
+            } catch (BusinessException e) {
+                System.out.println("Ошибка: " + e.getMessage());
+            }
+        }
+    }
+
+    /** Считывает целое число и проверяет его (например, номер комнаты), повторяя ввод при ошибке. */
+    private static int readValidInt(String prompt, IntConsumer check) {
+        while (true) {
+            int value = readInt(prompt);
+            try {
+                check.accept(value);
+                return value;
+            } catch (BusinessException e) {
+                System.out.println("Ошибка: " + e.getMessage());
+            }
+        }
+    }
+
+    /** Считывает дату и проверяет её (не в прошлом, выезд позже заезда и т.д.), повторяя ввод при ошибке. */
+    private static LocalDate readValidDate(String prompt, Consumer<LocalDate> check) {
+        while (true) {
+            LocalDate value = readDate(prompt);
+            try {
+                check.accept(value);
+                return value;
+            } catch (BusinessException e) {
+                System.out.println("Ошибка: " + e.getMessage());
             }
         }
     }

@@ -13,6 +13,13 @@ import java.util.List;
  */
 public class ExcelExporter {
 
+    static {
+        // Apache POI пишет логи через Log4j2. Без этой настройки при первом экспорте в консоль
+        // выводится "ERROR StatusLogger Log4j2 could not find a logging implementation".
+        // Включаем встроенный простой логгер Log4j2, чтобы не подключать отдельную библиотеку.
+        System.setProperty("log4j2.loggerContextFactory", "org.apache.logging.log4j.simple.SimpleLoggerContextFactory");
+    }
+
     /**
      * Сохраняет переданные данные в .xlsx файл.
      *

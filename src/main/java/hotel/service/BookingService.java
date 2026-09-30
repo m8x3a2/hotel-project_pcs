@@ -8,6 +8,7 @@ import hotel.model.RoomType;
 import hotel.model.User;
 import hotel.repository.BookingRepository;
 import hotel.repository.UserRepository;
+import hotel.util.Validator;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -44,13 +45,18 @@ public class BookingService {
     public Booking createBooking(int userId, int roomNumber, RoomType roomType,
                                   LocalDate checkIn, LocalDate checkOut) throws SQLException {
 
+        Validator.validateId(userId, "гостя");
+
         // Бизнес-правило 1: гость должен существовать
         if (userRepository.findById(userId).isEmpty()) {
             throw new EntityNotFoundException("Гость с ID " + userId + " не найден. Бронирование невозможно.");
         }
 
-        validateDates(checkIn, checkOut);
         validateRoomNumber(roomNumber);
+        validateRoomType(roomType);
+        validateDates(checkIn, checkOut);
+        // Новое бронирование нельзя оформить задним числом или слишком далеко вперёд
+        Validator.validateCheckInForNewBooking(checkIn, LocalDate.now());
 
         // Бизнес-правило: номер не должен быть уже занят на пересекающиеся даты
         checkRoomAvailability(roomNumber, checkIn, checkOut, null);
@@ -76,10 +82,15 @@ public class BookingService {
 
     public void updateBooking(int id, int roomNumber, RoomType roomType,
                                LocalDate checkIn, LocalDate checkOut) throws SQLException {
-        Booking booking = getBookingById(id);
+        Booking booking = getEditableBooking(id);
 
-        validateDates(checkIn, checkOut);
         validateRoomNumber(roomNumber);
+        validateRoomType(roomType);
+        validateDates(checkIn, checkOut);
+        // Если дату заезда перенесли, новая дата тоже не должна быть в прошлом
+        if (!checkIn.equals(booking.getCheckInDate())) {
+            Validator.validateCheckInForNewBooking(checkIn, LocalDate.now());
+        }
         checkRoomAvailability(roomNumber, checkIn, checkOut, id);
 
         booking.setRoomNumber(roomNumber);
@@ -91,8 +102,24 @@ public class BookingService {
         bookingRepository.update(booking);
     }
 
+    /**
+     * Возвращает бронирование, если его ещё можно редактировать.
+     * Бизнес-правило: менять можно только ещё не начавшееся бронирование (CREATED или CONFIRMED).
+     */
+    public Booking getEditableBooking(int id) throws SQLException {
+        Booking booking = getBookingById(id);
+        if (booking.getStatus() != BookingStatus.CREATED && booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BusinessException("Нельзя изменить бронирование в статусе " + booking.getStatus() +
+                    ". Изменять можно только бронирования в статусах CREATED и CONFIRMED.");
+        }
+        return booking;
+    }
+
     /** Изменение статуса бронирования с проверкой допустимости перехода (бизнес-правило). */
     public void changeStatus(int id, BookingStatus newStatus) throws SQLException {
+        if (newStatus == null) {
+            throw new BusinessException("Новый статус не указан.");
+        }
         Booking booking = getBookingById(id);
 
         Set<BookingStatus> allowed = ALLOWED_TRANSITIONS.get(booking.getStatus());
@@ -195,18 +222,17 @@ public class BookingService {
     // ===================== ПРИВАТНЫЕ ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ (бизнес-правила) =====================
 
     private void validateDates(LocalDate checkIn, LocalDate checkOut) {
-        if (checkIn == null || checkOut == null) {
-            throw new BusinessException("Даты заезда и выезда обязательны.");
-        }
-        // Бизнес-правило: дата выезда должна быть позже даты заезда
-        if (!checkOut.isAfter(checkIn)) {
-            throw new BusinessException("Дата выезда должна быть позже даты заезда.");
-        }
+        // Бизнес-правило: дата выезда позже даты заезда, срок проживания ограничен
+        Validator.validateStayDates(checkIn, checkOut);
     }
 
     private void validateRoomNumber(int roomNumber) {
-        if (roomNumber <= 0) {
-            throw new BusinessException("Номер комнаты должен быть положительным числом.");
+        Validator.validateRoomNumber(roomNumber);
+    }
+
+    private void validateRoomType(RoomType roomType) {
+        if (roomType == null) {
+            throw new BusinessException("Тип номера обязателен.");
         }
     }
 
