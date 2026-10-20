@@ -203,6 +203,27 @@ public class BookingService {
                 .toList();
     }
 
+    /**
+     * Поиск и все фильтры сразу (для окна JavaFX, КР2). Если параметр null - этот фильтр не применяется.
+     * Текст ищется в двух полях: ФИО гостя и номер комнаты.
+     */
+    public List<Booking> search(String text, BookingStatus status, RoomType roomType, LocalDate from, LocalDate to)
+            throws SQLException {
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new BusinessException("Период заезда: дата «по» не может быть раньше даты «с».");
+        }
+        String query = text == null ? "" : text.trim().toLowerCase();
+        return bookingRepository.findAll().stream()
+                .filter(b -> query.isEmpty()
+                        || b.getGuestName().toLowerCase().contains(query)
+                        || String.valueOf(b.getRoomNumber()).contains(query))
+                .filter(b -> status == null || b.getStatus() == status)
+                .filter(b -> roomType == null || b.getRoomType() == roomType)
+                .filter(b -> from == null || !b.getCheckIn().isBefore(from))
+                .filter(b -> to == null || !b.getCheckIn().isAfter(to))
+                .toList();
+    }
+
     // ======================== СОРТИРОВКА ========================
     // Comparator говорит, как сравнивать два бронирования между собой.
 
@@ -298,6 +319,17 @@ public class BookingService {
         return stats;
     }
 
+    /** Количество бронирований в каждом статусе (для круговой диаграммы в КР2). */
+    public Map<BookingStatus, Long> countByStatus() throws SQLException {
+        List<Booking> bookings = bookingRepository.findAll();
+        Map<BookingStatus, Long> result = new LinkedHashMap<>();
+        for (BookingStatus status : BookingStatus.values()) {
+            long count = bookings.stream().filter(b -> b.getStatus() == status).count();
+            result.put(status, count);
+        }
+        return result;
+    }
+
     // ======================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ========================
 
     private Room findRoom(int roomId) throws SQLException {
@@ -333,8 +365,11 @@ public class BookingService {
         }
     }
 
-    /** Правило 9: стоимость = ночи * цена за ночь. */
-    private double calculatePrice(Room room, LocalDate checkIn, LocalDate checkOut) {
+    /**
+     * Правило 9: стоимость = ночи * цена за ночь.
+     * Метод открытый, потому что окно бронирования (КР2) показывает предварительную стоимость.
+     */
+    public double calculatePrice(Room room, LocalDate checkIn, LocalDate checkOut) {
         long nights = ChronoUnit.DAYS.between(checkIn, checkOut);
         return nights * room.getPricePerNight();
     }

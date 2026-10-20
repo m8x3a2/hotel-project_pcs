@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.TableColumn?>
+<?import javafx.scene.control.TableView?>
+<?import javafx.scene.control.cell.PropertyValueFactory?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<!-- Вкладка "Гости": сверху список гостей, снизу - бронирования выбранного гостя -->
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="ru.mirea.hotel.fx.controller.GuestsController"
+            styleClass="tab-content">
+    <top>
+        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="top-box">
+            <Button text="Добавить гостя" onAction="#onAdd" styleClass="primary-button"/>
+            <Button fx:id="editButton" text="Изменить" onAction="#onEdit"/>
+            <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete" styleClass="danger-button"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Обновить" onAction="#onRefresh"/>
+        </HBox>
+    </top>
+    <center>
+        <!-- SplitPane - две части окна с перетаскиваемой границей -->
+        <SplitPane orientation="VERTICAL" dividerPositions="0.55">
+            <TableView fx:id="table">
+                <placeholder><Label text="Гостей нет" styleClass="muted"/></placeholder>
+                <columnResizePolicy>
+                    <TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/>
+                </columnResizePolicy>
+                <columns>
+                    <TableColumn text="ФИО" prefWidth="320">
+                        <cellValueFactory><PropertyValueFactory property="fullName"/></cellValueFactory>
+                    </TableColumn>
+                    <TableColumn text="Телефон" prefWidth="180">
+                        <cellValueFactory><PropertyValueFactory property="phone"/></cellValueFactory>
+                    </TableColumn>
+                    <TableColumn text="Email" prefWidth="260">
+                        <cellValueFactory><PropertyValueFactory property="email"/></cellValueFactory>
+                    </TableColumn>
+                </columns>
+            </TableView>
+
+            <VBox spacing="6" styleClass="related-box">
+                <Label fx:id="bookingsTitle" styleClass="section-title"/>
+                <TableView fx:id="bookingsTable" VBox.vgrow="ALWAYS">
+                    <placeholder><Label text="Бронирований нет" styleClass="muted"/></placeholder>
+                    <columnResizePolicy>
+                        <TableView fx:constant="CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN"/>
+                    </columnResizePolicy>
+                    <columns>
+                        <TableColumn text="№" prefWidth="50">
+                            <cellValueFactory><PropertyValueFactory property="id"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn text="Номер" prefWidth="70">
+                            <cellValueFactory><PropertyValueFactory property="roomNumber"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn text="Тип номера" prefWidth="100">
+                            <cellValueFactory><PropertyValueFactory property="roomType"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn fx:id="checkInColumn" text="Заезд" prefWidth="100">
+                            <cellValueFactory><PropertyValueFactory property="checkIn"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn fx:id="checkOutColumn" text="Выезд" prefWidth="100">
+                            <cellValueFactory><PropertyValueFactory property="checkOut"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn text="Статус" prefWidth="120">
+                            <cellValueFactory><PropertyValueFactory property="status"/></cellValueFactory>
+                        </TableColumn>
+                        <TableColumn fx:id="priceColumn" text="Стоимость" prefWidth="130">
+                            <cellValueFactory><PropertyValueFactory property="totalPrice"/></cellValueFactory>
+                        </TableColumn>
+                    </columns>
+                </TableView>
+            </VBox>
+        </SplitPane>
+    </center>
+</BorderPane>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.DialogPane?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+
+<!-- Форма гостя (добавление и изменение). Кнопки "Сохранить"/"Отмена" добавляет FxDialogs.openForm -->
+<DialogPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="ru.mirea.hotel.fx.controller.GuestDialogController"
+            stylesheets="@app.css" prefWidth="520">
+    <headerText>Данные гостя. Все поля обязательны.</headerText>
+    <content>
+        <GridPane hgap="10" vgap="10" styleClass="form">
+            <columnConstraints>
+                <ColumnConstraints minWidth="110"/>
+                <ColumnConstraints hgrow="ALWAYS"/>
+            </columnConstraints>
+
+            <Label text="ФИО:" GridPane.rowIndex="0"/>
+            <TextField fx:id="fullNameField" promptText="Иванов Иван Иванович"
+                       GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+            <Label text="Телефон:" GridPane.rowIndex="1"/>
+            <TextField fx:id="phoneField" promptText="+7 900 123-45-67"
+                       GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+            <Label text="Email:" GridPane.rowIndex="2"/>
+            <TextField fx:id="emailField" promptText="ivanov@mail.ru"
+                       GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+            <Label fx:id="errorLabel" styleClass="error-label" wrapText="true"
+                   GridPane.rowIndex="3" GridPane.columnSpan="2"/>
+        </GridPane>
+    </content>
+</DialogPane>

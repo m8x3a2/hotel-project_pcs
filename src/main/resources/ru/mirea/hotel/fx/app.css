@@ -1,0 +1,222 @@
+/*
+ * Оформление JavaFX-приложения (КР2).
+ * Подключается в main.fxml и во всех формах (stylesheets="@app.css").
+ * В JavaFX свойства CSS начинаются с -fx-. styleClass="..." в FXML = класс .имя здесь.
+ */
+
+/* ---------- Общее ---------- */
+.root {
+    -fx-font-family: "Segoe UI", Arial, sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: #f4f6fb;
+}
+
+.muted {
+    -fx-text-fill: #6b7486;
+}
+
+/* ---------- Шапка окна ---------- */
+.header {
+    -fx-background-color: #1f3a5f;
+    -fx-padding: 14 20 14 20;
+}
+
+.header-title {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.header-subtitle {
+    -fx-text-fill: #c9d6ea;
+    -fx-font-size: 15px;
+}
+
+/* ---------- Контейнеры ---------- */
+.tab-content {
+    -fx-padding: 14;
+}
+
+.top-box {
+    -fx-padding: 0 0 10 0;
+}
+
+.filter-bar,
+.details-box,
+.card {
+    -fx-background-color: white;
+    -fx-background-radius: 8;
+    -fx-border-color: #e1e6ef;
+    -fx-border-radius: 8;
+    -fx-padding: 10 12 10 12;
+}
+
+.filter-bar {
+    -fx-alignment: center-left;
+}
+
+.details-box {
+    -fx-padding: 10 12 10 12;
+}
+
+.related-box {
+    -fx-padding: 8 0 0 0;
+}
+
+.card {
+    -fx-spacing: 10;
+    -fx-padding: 16;
+}
+
+.section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f3a5f;
+}
+
+.page-title {
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f3a5f;
+}
+
+/* ---------- Вкладки ---------- */
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-padding: 6 16 6 16;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: white;
+}
+
+/* ---------- Кнопки ---------- */
+.button {
+    -fx-background-color: white;
+    -fx-border-color: #cfd6e3;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 6 14 6 14;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #eef2f9;
+}
+
+.primary-button {
+    -fx-background-color: #2f6fde;
+    -fx-border-color: #2f6fde;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.primary-button:hover {
+    -fx-background-color: #2459b8;
+}
+
+.danger-button {
+    -fx-text-fill: #c0392b;
+    -fx-border-color: #e8b4ae;
+}
+
+.danger-button:hover {
+    -fx-background-color: #fdecea;
+}
+
+/* ---------- Таблицы ---------- */
+.table-view {
+    -fx-background-color: white;
+    -fx-border-color: #e1e6ef;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #eef2f9;
+}
+
+.table-view .column-header .label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f3a5f;
+}
+
+.money-cell {
+    -fx-alignment: center-right;
+}
+
+/* Цвет строки бронирования зависит от статуса (класс добавляет FxCells.colorByStatus) */
+.table-row-cell.status-confirmed .table-cell {
+    -fx-text-fill: #1e7b46;
+}
+
+.table-row-cell.status-completed .table-cell {
+    -fx-text-fill: #55607a;
+}
+
+.table-row-cell.status-cancelled .table-cell {
+    -fx-text-fill: #a0a7b4;
+}
+
+/* Выделенная строка в активной таблице - белый текст на синем фоне */
+.table-view:focused .table-row-cell:selected .table-cell {
+    -fx-text-fill: white;
+}
+
+/* ---------- Формы ввода ---------- */
+.text-field,
+.combo-box,
+.date-picker {
+    -fx-background-color: white;
+    -fx-border-color: #cfd6e3;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+/* Внутри DatePicker есть своё текстовое поле - убираем ему вторую рамку */
+.date-picker > .text-field {
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+}
+
+.text-field:focused,
+.combo-box:focused,
+.date-picker:focused {
+    -fx-border-color: #2f6fde;
+}
+
+.form {
+    -fx-padding: 6 4 6 4;
+}
+
+/* Поле с ошибкой ввода (класс добавляет FormController.readInt / readDouble) */
+.text-field.field-error {
+    -fx-border-color: #d64545;
+    -fx-background-color: #fff5f5;
+}
+
+.error-label {
+    -fx-text-fill: #c0392b;
+    -fx-font-weight: bold;
+}
+
+.price-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #1f3a5f;
+}
+
+/* ---------- Статистика ---------- */
+.stat-name {
+    -fx-text-fill: #3b4458;
+}
+
+.stat-value {
+    -fx-font-weight: bold;
+    -fx-text-fill: #2f6fde;
+}
+
+/* ---------- Диалоги ---------- */
+.dialog-pane {
+    -fx-background-color: white;
+}
+
+.dialog-pane > .header-panel {
+    -fx-background-color: #eef2f9;
+}
