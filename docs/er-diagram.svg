@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Белый фон, чтобы диаграмма читалась и в тёмной теме -->
+  <rect x="0" y="0" width="960" height="400" fill="#ffffff"/>
+
+  <text x="480" y="32" text-anchor="middle" font-size="18" font-weight="bold" fill="#1f2d3d">ER-диаграмма базы данных hotel_db</text>
+
+  <style>
+    .box { fill: #ffffff; stroke: #2f5d8a; stroke-width: 1.5; }
+    .head { fill: #2f5d8a; }
+    .title { fill: #ffffff; font-size: 15px; font-weight: bold; }
+    .col { fill: #1f2d3d; font-size: 12px; font-family: Consolas, 'Courier New', monospace; }
+    .type { fill: #5b6b7b; font-size: 12px; font-family: Consolas, 'Courier New', monospace; }
+    .pk { fill: #b07800; font-size: 11px; font-weight: bold; }
+    .fk { fill: #2e7d32; font-size: 11px; font-weight: bold; }
+    .uq { fill: #6a3d9a; font-size: 11px; font-weight: bold; }
+    .rel { fill: none; stroke: #444444; stroke-width: 1.5; }
+    .card { fill: #444444; font-size: 12px; font-weight: bold; }
+    .note { fill: #444444; font-size: 12px; }
+  </style>
+
+  <!-- ===== guests ===== -->
+  <rect class="box" x="20" y="80" width="250" height="150" rx="6"/>
+  <rect class="head" x="20" y="80" width="250" height="36" rx="6"/>
+  <text class="title" x="145" y="103" text-anchor="middle">guests (гости)</text>
+  <text class="pk" x="32" y="134">PK</text><text class="col" x="64" y="134">id</text><text class="type" x="258" y="134" text-anchor="end">SERIAL</text>
+  <text class="col" x="64" y="160">full_name</text><text class="type" x="258" y="160" text-anchor="end">VARCHAR(100) NN</text>
+  <text class="col" x="64" y="186">phone</text><text class="type" x="258" y="186" text-anchor="end">VARCHAR(20) NN</text>
+  <text class="uq" x="32" y="212">UQ</text><text class="col" x="64" y="212">email</text><text class="type" x="258" y="212" text-anchor="end">VARCHAR(100) NN</text>
+
+  <!-- ===== bookings ===== -->
+  <rect class="box" x="340" y="60" width="260" height="254" rx="6"/>
+  <rect class="head" x="340" y="60" width="260" height="36" rx="6"/>
+  <text class="title" x="470" y="83" text-anchor="middle">bookings (бронирования)</text>
+  <text class="pk" x="352" y="114">PK</text><text class="col" x="384" y="114">id</text><text class="type" x="588" y="114" text-anchor="end">SERIAL</text>
+  <text class="fk" x="352" y="140">FK</text><text class="col" x="384" y="140">guest_id</text><text class="type" x="588" y="140" text-anchor="end">INTEGER NN</text>
+  <text class="fk" x="352" y="166">FK</text><text class="col" x="384" y="166">room_id</text><text class="type" x="588" y="166" text-anchor="end">INTEGER NN</text>
+  <text class="col" x="384" y="192">check_in</text><text class="type" x="588" y="192" text-anchor="end">DATE NN</text>
+  <text class="col" x="384" y="218">check_out</text><text class="type" x="588" y="218" text-anchor="end">DATE NN</text>
+  <text class="col" x="384" y="244">guests_count</text><text class="type" x="588" y="244" text-anchor="end">INTEGER NN</text>
+  <text class="col" x="384" y="270">status</text><text class="type" x="588" y="270" text-anchor="end">VARCHAR(20) NN</text>
+  <text class="col" x="384" y="296">total_price</text><text class="type" x="588" y="296" text-anchor="end">NUMERIC(10,2)</text>
+
+  <!-- ===== rooms ===== -->
+  <rect class="box" x="670" y="80" width="270" height="176" rx="6"/>
+  <rect class="head" x="670" y="80" width="270" height="36" rx="6"/>
+  <text class="title" x="805" y="103" text-anchor="middle">rooms (номера)</text>
+  <text class="pk" x="682" y="134">PK</text><text class="col" x="714" y="134">id</text><text class="type" x="928" y="134" text-anchor="end">SERIAL</text>
+  <text class="uq" x="682" y="160">UQ</text><text class="col" x="714" y="160">room_number</text><text class="type" x="928" y="160" text-anchor="end">INTEGER NN</text>
+  <text class="col" x="714" y="186">room_type</text><text class="type" x="928" y="186" text-anchor="end">VARCHAR(20) NN</text>
+  <text class="col" x="714" y="212">capacity</text><text class="type" x="928" y="212" text-anchor="end">INTEGER NN</text>
+  <text class="col" x="714" y="238">price_per_night</text><text class="type" x="928" y="238" text-anchor="end">NUMERIC(10,2)</text>
+
+  <!-- ===== Связь guests.id (1) -> bookings.guest_id (N) ===== -->
+  <path class="rel" d="M270,129 H305 V135 H340"/>
+  <line class="rel" x1="278" y1="123" x2="278" y2="135"/>
+  <line class="rel" x1="284" y1="123" x2="284" y2="135"/>
+  <line class="rel" x1="326" y1="135" x2="340" y2="127"/>
+  <line class="rel" x1="326" y1="135" x2="340" y2="143"/>
+  <text class="card" x="290" y="120">1</text>
+  <text class="card" x="326" y="122">N</text>
+
+  <!-- ===== Связь rooms.id (1) -> bookings.room_id (N) ===== -->
+  <path class="rel" d="M670,129 H635 V161 H600"/>
+  <line class="rel" x1="662" y1="123" x2="662" y2="135"/>
+  <line class="rel" x1="656" y1="123" x2="656" y2="135"/>
+  <line class="rel" x1="614" y1="161" x2="600" y2="153"/>
+  <line class="rel" x1="614" y1="161" x2="600" y2="169"/>
+  <text class="card" x="642" y="120">1</text>
+  <text class="card" x="606" y="150">N</text>
+
+  <!-- ===== Пояснения ===== -->
+  <text class="note" x="20" y="345">PK - первичный ключ, FK - внешний ключ, UQ - UNIQUE, NN - NOT NULL. CHECK-ограничения: room_type, status, capacity 1..6,</text>
+  <text class="note" x="20" y="363">цены и количество гостей больше 0, check_out &gt; check_in.</text>
+  <text class="note" x="20" y="385">Связи: один гость - много бронирований (bookings.guest_id -&gt; guests.id); один номер - много бронирований (bookings.room_id -&gt; rooms.id).</text>
+</svg>

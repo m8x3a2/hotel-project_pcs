@@ -1,65 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    pom.xml - файл проекта Maven.
+    Здесь описано: как называется проект, какая версия Java,
+    какие библиотеки (зависимости) нужно скачать и как запускать программу.
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>ru.mirea.project</groupId>
-    <artifactId>hotel-booking-system</artifactId>
+    <groupId>ru.mirea</groupId>
+    <artifactId>hotel-booking</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <name>Hotel Booking (KR1 console)</name>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <!-- Версия Java, под которую компилируется код (КР2 тоже требует Java 21) -->
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <postgresql.version>42.7.13</postgresql.version>
+        <poi.version>5.4.1</poi.version>
     </properties>
 
     <dependencies>
-        <!-- Драйвер для подключения к PostgreSQL через JDBC -->
+        <!-- JDBC-драйвер PostgreSQL: позволяет Java подключаться к базе данных -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.3</version>
+            <version>${postgresql.version}</version>
         </dependency>
 
-        <!-- Apache POI - для экспорта данных в Excel (.xlsx) -->
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
-            <version>5.2.5</version>
-        </dependency>
+        <!-- Apache POI: библиотека для создания Excel-файлов (.xlsx) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <!-- Логирование для Apache POI. Без него POI печатает в консоль
+             "Log4j API could not find a logging provider" -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.24.3</version>
         </dependency>
     </dependencies>
 
     <build>
-        <finalName>hotel-booking-system</finalName>
         <plugins>
-            <!-- Плагин сборки "толстого" jar-файла со всеми зависимостями внутри,
-                 чтобы программу можно было запустить одной командой java -jar -->
+            <!-- Компилятор Java -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>hotel.Main</mainClass>
-                                </transformer>
-                            </transformers>
-                        </configuration>
-                    </execution>
-                </executions>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+
+            <!-- Запуск программы из консоли командой: mvn compile exec:java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>ru.mirea.hotel.Main</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
