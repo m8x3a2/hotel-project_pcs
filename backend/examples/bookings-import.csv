@@ -1,0 +1,8 @@
+code,guestEmail,roomNumber,checkIn,checkOut,guestsCount,status,prepaid,specialRequests,tags
+BK-IMP-001,volkova@mail.ru,302,2027-01-10,2027-01-13,2,CONFIRMED,true,Вид на город,vip
+BK-IMP-002,smirnov@mail.ru,103,2027-01-15,2027-01-17,1,CREATED,нет,,business
+,petrova@mail.ru,201,2027-02-01,2027-02-04,2,CREATED,false,Без кода - сервер выдаст следующий BK-номер,family|late-checkout
+BK-IMP-004,nobody@mail.ru,101,2027-01-10,2027-01-12,1,CREATED,false,Гостя нет в базе,
+BK-IMP-005,ivanov@mail.ru,103,2027-01-20,2027-01-22,3,CREATED,false,Больше гостей чем мест,
+BK-IMP-006,sidorov@mail.ru,301,2026-12-25,2026-12-27,2,CREATED,true,Номер уже занят бронью BK-000016,family
+BK-IMP-007,kuznetsova@mail.ru,104,2027-03-05,2027-03-01,2,CREATED,true,Выезд раньше заезда,

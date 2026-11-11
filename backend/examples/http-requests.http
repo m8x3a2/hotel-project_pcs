@@ -1,0 +1,161 @@
+### Примеры запросов к REST API (IntelliJ IDEA: открыть файл и нажимать ▶ слева от запроса).
+### Это тот же API, которым будет пользоваться Android-приложение КР4 (там адрес http://10.0.2.2:8080/api).
+### Сначала выполните вход - access и refresh токены сохранятся в переменные клиента.
+
+@base = http://localhost:8080
+
+### Health (без авторизации)
+GET {{base}}/actuator/health
+
+### Вход (clientType NATIVE - refresh-токен приходит в JSON, как нужно Android)
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{"email": "admin@hotel.local", "password": "ПАРОЛЬ_ИЗ_.env_ИЛИ_ПОСТОЯННЫЙ", "clientType": "NATIVE"}
+
+> {%
+    client.global.set("access", response.body.accessToken);
+    client.global.set("refresh", response.body.refreshToken);
+%}
+
+### Первый вход: замена временного пароля (пока не сделано - остальные /api отвечают 403 PASSWORD_CHANGE_REQUIRED)
+POST {{base}}/api/auth/change-initial-password
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"newPassword": "Hotel-Defense-2026!"}
+
+### Текущий пользователь
+GET {{base}}/api/auth/me
+Authorization: Bearer {{access}}
+
+### Обновить access JWT по refresh-токену (старый refresh после этого недействителен)
+POST {{base}}/api/auth/refresh
+Content-Type: application/json
+
+{"refreshToken": "{{refresh}}"}
+
+> {%
+    client.global.set("access", response.body.accessToken);
+    client.global.set("refresh", response.body.refreshToken);
+%}
+
+### Список броней: поиск, фильтры, сортировка, пагинация
+GET {{base}}/api/bookings?q=статус:подтверждено предоплата:да&page=0&size=5&sort=price,desc
+Authorization: Bearer {{access}}
+
+### Фильтр по номеру, сумме и архиву
+GET {{base}}/api/bookings?q=номер:301 сумма>=20000 архив:все&sort=checkIn,asc
+Authorization: Bearer {{access}}
+
+### Справочник номеров
+GET {{base}}/api/rooms
+Authorization: Bearer {{access}}
+
+> {% client.global.set("roomId", response.body[3].id); %}
+
+### Гости
+GET {{base}}/api/guests?q=волкова
+Authorization: Bearer {{access}}
+
+> {% client.global.set("guestId", response.body.content[0].id); %}
+
+### Создать бронь (стоимость и риск посчитает сервер)
+POST {{base}}/api/bookings
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"guestId": "{{guestId}}", "roomId": "{{roomId}}", "checkIn": "2027-05-10", "checkOut": "2027-05-12",
+ "guestsCount": 2, "status": "CREATED", "prepaid": false, "specialRequests": "Создано из .http", "tags": ["demo"]}
+
+> {%
+    client.global.set("bookingId", response.body.id);
+    client.global.set("version", response.body.version);
+%}
+
+### Изменить бронь (нужна актуальная version; со старой будет 409)
+PUT {{base}}/api/bookings/{{bookingId}}
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"guestId": "{{guestId}}", "roomId": "{{roomId}}", "checkIn": "2027-05-10", "checkOut": "2027-05-13",
+ "guestsCount": 2, "status": "CONFIRMED", "prepaid": true, "tags": ["demo"], "version": {{version}}}
+
+### Заметки к брони
+POST {{base}}/api/bookings/{{bookingId}}/notes
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"body": "Гость просил номер подальше от лифта", "pinned": true}
+
+###
+GET {{base}}/api/bookings/{{bookingId}}/notes
+Authorization: Bearer {{access}}
+
+### В архив (DELETE = архивирование) и восстановление
+DELETE {{base}}/api/bookings/{{bookingId}}
+Authorization: Bearer {{access}}
+
+###
+POST {{base}}/api/bookings/{{bookingId}}/restore
+Authorization: Bearer {{access}}
+
+### Массовая операция
+POST {{base}}/api/bookings/bulk
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"ids": ["{{bookingId}}"], "action": "ADD_TAG", "tag": "checked"}
+
+### Проверка CSV (ничего не пишет в базу)
+POST {{base}}/api/bookings/import/preview?mode=CREATE_ONLY
+Authorization: Bearer {{access}}
+Content-Type: multipart/form-data; boundary=b
+
+--b
+Content-Disposition: form-data; name="file"; filename="bookings-import.csv"
+Content-Type: text/csv
+
+< ./bookings-import.csv
+--b--
+
+### Применение CSV
+POST {{base}}/api/bookings/import/apply?mode=CREATE_ONLY
+Authorization: Bearer {{access}}
+Content-Type: multipart/form-data; boundary=b
+
+--b
+Content-Disposition: form-data; name="file"; filename="bookings-import.csv"
+Content-Type: text/csv
+
+< ./bookings-import.csv
+--b--
+
+### Экспорт CSV по фильтру
+GET {{base}}/api/bookings/export?q=статус:подтверждено
+Authorization: Bearer {{access}}
+
+### Аналитика
+GET {{base}}/api/analytics/summary
+Authorization: Bearer {{access}}
+
+### Пользователи (ADMIN)
+GET {{base}}/api/admin/users?page=0&size=20
+Authorization: Bearer {{access}}
+
+### Создать менеджера - сервер вернёт временный пароль
+POST {{base}}/api/admin/users
+Authorization: Bearer {{access}}
+Content-Type: application/json
+
+{"email": "manager@hotel.local", "displayName": "Менеджер ресепшена", "roles": ["MANAGER"]}
+
+### Журнал аудита (ADMIN)
+GET {{base}}/api/admin/audit?q=LOGIN&sort=occurred,desc
+Authorization: Bearer {{access}}
+
+### Выход (отзыв refresh-сессии)
+POST {{base}}/api/auth/logout
+Content-Type: application/json
+
+{"refreshToken": "{{refresh}}"}

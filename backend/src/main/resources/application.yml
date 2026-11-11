@@ -1,0 +1,87 @@
+# Настройки backend КР3. Секреты и пароли сюда не пишутся:
+# они приходят из переменных окружения (корневой .env -> docker-compose.yml).
+spring:
+  application:
+    name: hotel-booking
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:55432/hotel_booking}
+    username: ${SPRING_DATASOURCE_USERNAME:hotel_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate          # схему создаёт только Flyway, Hibernate её лишь проверяет
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        # связанные гости/номера/теги для страницы броней грузятся пачками, а не по одному запросу (N+1)
+        default_batch_fetch_size: 50
+
+  flyway:
+    enabled: true
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      fail-on-unknown-properties: true
+
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-store: true
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: false
+  api-docs:
+    path: /v3/api-docs
+
+app:
+  jwt:
+    secret-base64: ${JWT_SECRET_BASE64:}
+    issuer: ${JWT_ISSUER:hotel-booking}
+    access-minutes: ${ACCESS_TOKEN_MINUTES:15}
+    refresh-days: ${REFRESH_TOKEN_DAYS:14}
+  bootstrap:
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    name: ${BOOTSTRAP_ADMIN_NAME:System Administrator}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080}
+  cookie-secure: ${COOKIE_SECURE:false}
+  permanent-delete-enabled: ${PERMANENT_DELETE_ENABLED:true}
+  time-zone: ${APP_TIME_ZONE:Europe/Moscow}
+  import-limits:
+    max-rows: 5000

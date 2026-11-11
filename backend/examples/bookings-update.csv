@@ -1,0 +1,4 @@
+code,guestEmail,roomNumber,checkIn,checkOut,guestsCount,status,prepaid,specialRequests,tags
+BK-000007,petrova@mail.ru,101,2026-11-02,2026-11-05,2,CONFIRMED,true,Подтвердили по телефону,vip
+BK-000019,volkova@mail.ru,202,2026-11-08,2026-11-10,3,CONFIRMED,true,Предоплата получена,family
+BK-IMP-NEW,ivanov@mail.ru,104,2027-04-01,2027-04-03,2,CREATED,false,Новая бронь в режиме обновления,

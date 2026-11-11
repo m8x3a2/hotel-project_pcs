@@ -564,7 +564,118 @@ public static <C extends FormController> boolean openForm(Window owner, String f
 `C` — любой наследник `FormController` (GuestDialogController, RoomDialogController, ...).
 `Consumer<C>` — функция «принять объект и что-то с ним сделать», передаётся лямбдой: `(GuestDialogController f) -> f.setGuest(g)`.
 
-## 26. Шпаргалка: Java vs другие языки
+## 26. Spring Boot (КР3)
+
+Код — `backend/src/main/java/ru/mirea/hotel/backend/`. Ниже всё, что там встречается.
+
+### 26.1 Бины и внедрение зависимостей
+```java
+@Service
+public class BookingService {
+    private final BookingRepository bookings;
+    public BookingService(BookingRepository bookings, ...) { this.bookings = bookings; }   // Spring сам передаст объект
+}
+```
+`@Component`, `@Service`, `@RestController`, `@Configuration` — «Spring, создай один объект этого класса (бин)».
+Все зависимости приходят через конструктор — `new BookingService(...)` мы нигде не пишем (в КР2 это делал `AppContext`).
+`@Bean` в `@Configuration`-классе — бин из метода (`SecurityConfig.passwordEncoder()`).
+
+### 26.2 REST-контроллер
+```java
+@RestController @RequestMapping("/api/bookings")
+public class BookingController {
+    @GetMapping("/{id}")                                // GET /api/bookings/{id}
+    @PreAuthorize("hasAnyRole('VIEWER','MANAGER','ADMIN')")
+    public BookingResponse get(@PathVariable UUID id) { return bookings.get(id); }   // объект -> JSON автоматически
+
+    @PostMapping                                        // POST /api/bookings, тело JSON -> BookingRequest
+    public ResponseEntity<BookingResponse> create(@Valid @RequestBody BookingRequest request) {
+        return ResponseEntity.status(201).body(bookings.create(request));
+    }
+}
+```
+`@RequestParam` — параметр из `?q=...`, `@RequestHeader` — заголовок, `@RequestPart` — файл (CSV).
+
+### 26.3 record — DTO в одну строку (Java 16+)
+```java
+public record BookingResponse(UUID id, String code, BigDecimal totalPrice, ...) { }
+```
+Неизменяемый класс: поля, конструктор, геттеры `id()`, `equals/hashCode/toString` генерируются. Все DTO в `dto/` — record.
+
+### 26.4 Bean Validation
+```java
+public record GuestRequest(@NotBlank @Size(min = 3, max = 100) String fullName,
+                           @NotBlank @Email String email, ...) { }
+```
+`@Valid` перед параметром контроллера запускает проверку; ошибки → `MethodArgumentNotValidException` → 400 с полями (`GlobalExceptionHandler`).
+
+### 26.5 JPA-сущность
+```java
+@Entity @Table(name = "bookings")
+public class Booking extends AuditedVersionedEntity {
+    @Id private UUID id;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "room_id") private Room room;   // внешний ключ
+    @Enumerated(EnumType.STRING) private BookingStatus status;                              // в БД текстом "CONFIRMED"
+    @ElementCollection @CollectionTable(name = "booking_tags") private Set<String> tags;     // отдельная таблица
+}
+```
+`@Version` — номер версии строки (optimistic locking). `@PrePersist/@PreUpdate` — методы, которые Hibernate вызывает перед INSERT/UPDATE.
+`LAZY` — связанный объект загружается при первом обращении (поэтому DTO собираются внутри транзакции).
+
+### 26.6 Spring Data JPA
+```java
+public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpecificationExecutor<Booking> {
+    long countByArchivedFalse();                                         // SQL построится по имени метода
+    @Query("select avg(b.totalPrice) from Booking b where b.archived = false")
+    Double averageTotalPriceForActive();                                 // JPQL - запрос по классам, а не таблицам
+}
+```
+Реализацию интерфейса пишет Spring. `findAll(spec, pageable)` — фильтр + страница + сортировка.
+
+### 26.7 Criteria API (фильтры без SQL-строк)
+```java
+(root, query, cb) -> cb.and(
+        cb.equal(root.get("status"), filter.status()),
+        cb.greaterThanOrEqualTo(root.get("totalPrice"), new BigDecimal("20000")))
+```
+Это лямбда, реализующая `Specification<Booking>`; значения идут в SQL параметрами — инъекция невозможна (`BookingSpecifications`).
+
+### 26.8 Транзакции
+`@Transactional` на методе сервиса: всё внутри — одна транзакция; исключение → откат. `readOnly = true` — только чтение.
+`propagation = REQUIRES_NEW` — отдельная транзакция (запись о неудачном входе сохраняется, хотя запрос входа откатывается).
+Изменённую сущность не нужно «сохранять»: Hibernate сам сделает UPDATE при коммите (dirty checking).
+
+### 26.9 Обработка ошибок для всего приложения
+```java
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<?> notFound(...) { ... 404 + ApiError ... }
+}
+```
+Контроллеры не пишут try/catch — любое исключение попадает сюда.
+
+### 26.10 Безопасность
+`SecurityFilterChain` (`SecurityConfig`) — какие адреса открыты, какие требуют входа; свои фильтры (`OncePerRequestFilter`) читают JWT.
+`@PreAuthorize("hasRole('ADMIN')")` — проверка роли перед вызовом метода. `PasswordEncoder` (BCrypt) — хеширование паролей.
+
+### 26.11 Настройки
+`application.yml` + переменные окружения: `${JWT_SECRET_BASE64}` подставится из окружения (из `.env` через Docker Compose).
+`@ConfigurationProperties(prefix = "app") record AppProperties(...)` — блок `app:` превращается в типизированный объект.
+
+### 26.12 Тесты
+```java
+@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")      // весь Spring на H2 (application-test.yml)
+class SecurityFlowTest {
+    @Autowired MockMvc mvc;
+    @Test void x() throws Exception {
+        mvc.perform(get("/api/bookings")).andExpect(status().isUnauthorized());
+    }
+}
+```
+JUnit 5 (`@Test`), AssertJ (`assertThat(...).isEqualTo(...)`), MockMvc — HTTP-запросы без запуска сервера.
+
+## 27. Шпаргалка: Java vs другие языки
 
 | Java | C++ | Python | C# |
 |---|---|---|---|

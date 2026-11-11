@@ -1,5 +1,9 @@
 # Результаты сборки Maven
 /target/
+/backend/target/
+
+# КР3: настоящие секреты (пароль БД, JWT, пароль администратора). В git только .env.example
+.env
 
 # Файлы IntelliJ IDEA
 /.idea/

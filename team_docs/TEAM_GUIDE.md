@@ -1,8 +1,9 @@
-# Разбор проекта для команды (КР1 и КР2)
+# Разбор проекта для команды (КР1, КР2, КР3)
 
 > Это внутренний файл команды для подготовки к защите.
-> Про синтаксис Java и JavaFX — отдельный файл `JAVA_GUIDE.md` в этой же папке.
+> Про синтаксис Java, JavaFX и Spring — отдельный файл `JAVA_GUIDE.md` в этой же папке.
 > Часть 1 (разделы 1–6) — КР1, консоль. Часть 2 (разделы 7–10) — КР2, JavaFX.
+> Часть 3 (разделы 11–15) — КР3, Spring Boot backend + web-интерфейс (полное описание — `KR3.md` в корне).
 
 На защите преподаватель может спросить **любого** про **любую** часть. Поэтому:
 1. Сначала **все** читают разделы 1–3 (общая картина) — это минимум для каждого.
@@ -711,3 +712,209 @@ bookings (id PK, guest_id FK -> guests.id, room_id FK -> rooms.id,
 | абсолютные пути | `FileChooser` |
 | данные без проверки | валидация в формах и сервисах |
 | консоль как основной интерфейс | весь интерфейс в окнах |
+
+---
+
+# Часть 3. КР3 — Spring Boot backend
+
+## 11. Общая картина КР3 (знают ВСЕ)
+
+КР3 — та же гостиница, но теперь это **сервер**: программа без окон, которая слушает HTTP-запросы на порту 8080
+и отвечает JSON. Клиенты — наш web-интерфейс в браузере, Swagger, а в КР4 — Android-приложение.
+Код — в папке `backend/` (отдельный Maven-проект, пакет `ru.mirea.hotel.backend`). КР1/КР2 не тронуты.
+
+```
+ Браузер / Android / Swagger
+     │  HTTP-запрос: GET /api/bookings?q=номер:301   Authorization: Bearer <JWT>
+     ▼
+ Фильтры Spring Security     CorrelationIdFilter -> JwtAuthenticationFilter -> PasswordChangeRequiredFilter
+     │  кто пользователь? какие роли? не временный ли пароль?
+     ▼
+ controller/                 BookingController.search(): @PreAuthorize проверяет роль, принимает DTO
+     ▼
+ service/                    BookingService: бизнес-правила, @Transactional
+     ▼
+ repository/                 BookingRepository (Spring Data JPA) — SQL пишет Hibernate
+     ▼
+ PostgreSQL в Docker         схема создана миграциями Flyway V1..V4
+```
+
+Отличия от КР1/КР2, которые надо уметь назвать:
+
+| КР1/КР2 | КР3 |
+|---|---|
+| SQL руками через JDBC (`PreparedStatement`) | Spring Data JPA + Hibernate: сущность `@Entity`, запросы генерируются |
+| таблицы создаёт `sql/init.sql` | таблицы создаёт **Flyway** по миграциям `V1__...sql`; Hibernate только проверяет (`ddl-auto: validate`) |
+| объекты создаём сами в `Main`/`AppContext` | объекты (бины) создаёт **Spring** и сам передаёт в конструкторы (внедрение зависимостей) |
+| ID — `SERIAL` | ID — `UUID` + человекочитаемый код `BK-000014` |
+| нет пользователей | вход, JWT, роли VIEWER / MANAGER / ADMIN, аудит |
+| удаление строки | архив (`archived = true`) + окончательное удаление только ADMIN |
+| PostgreSQL ставится руками | PostgreSQL и backend в Docker одной командой |
+
+### Путь запроса «Создать бронь» (выучить всем)
+1. Web-интерфейс (`app.js`, функция `bindBookingForm`) отправляет `POST /api/bookings` с JSON и заголовком `Authorization: Bearer <access JWT>`.
+2. `JwtAuthenticationFilter` проверяет подпись токена (`JwtService.parse`), находит пользователя в БД и кладёт его в SecurityContext.
+3. `BookingController.create` — `@PreAuthorize("hasAnyRole('MANAGER','ADMIN')")`; у VIEWER здесь будет 403.
+4. `@Valid` проверяет `BookingRequest` (Bean Validation: обязательные поля, 1–6 гостей). Ошибка → 400 со списком полей.
+5. `BookingService.create` → `check(...)`: гость и номер есть, номер активен, даты, вместимость, номер не занят (`hasOverlap`) → иначе 400/409.
+6. Считается цена (ночи × цена номера) и риск отмены (`CancellationRiskCalculator`), код `BK-...` берётся из sequence.
+7. `bookings.saveAndFlush` → Hibernate делает `INSERT`; `audit.record(...)` пишет запись в журнал аудита в той же транзакции.
+8. Сущность превращается в `BookingResponse` (DTO) → Spring превращает его в JSON → ответ **201 Created**.
+9. Любое исключение ловит `GlobalExceptionHandler` и отдаёт единый JSON `ApiError` с нужным кодом (400/401/403/404/409).
+
+### Вход и токены (выучить всем)
+- `POST /api/auth/login` → сервер проверяет BCrypt-хеш пароля → выдаёт **access JWT** (15 минут, подписан секретом из `.env`)
+  и **refresh-токен** (случайная строка, в БД лежит только её SHA-256, живёт 14 дней).
+- Каждый запрос несёт access JWT. Истёк → клиент вызывает `POST /api/auth/refresh` → получает новую пару, старый refresh больше не работает.
+- `logout` отзывает refresh-сессию. 5 неверных паролей подряд — блокировка на 5+ минут.
+- Новый пользователь получает **временный пароль** — пока не сменит, все `/api/**`, кроме `/api/auth/*`, отвечают 403.
+
+### Файлы КР3
+
+| Файл / папка | Зачем | Кто |
+|---|---|---|
+| `backend/docker-compose.yml`, `Dockerfile`, `*.ps1`, `.env.example` | запуск в Docker, секреты | Участник 1 |
+| `db/migration/V1..V4`, `domain/*`, `repository/*` | схема БД, сущности, Spring Data | Участник 1 |
+| `security/*`, `config/SecurityConfig`, `AuthController`, `AuthService`, `LoginAttemptService` | вход, JWT, роли, пароли | Участник 2 |
+| `AdminUserController`, `UserAdminService`, `AuditService`, `AuditController`, `web/CorrelationIdFilter` | пользователи, аудит | Участник 2 |
+| `BookingService`, `CancellationRiskCalculator`, `filter/*`, `web/PageableFactory`, `AnalyticsService` | правила, поиск, фильтры, сортировка, аналитика | Участник 3 |
+| `BookingController`, `NoteService`, `CsvBookingService`, `RoomService`, `GuestService`, `dto/*`, `error/*` | REST API, CSV, заметки, справочники, ошибки | Участник 4 |
+| `static/index.html`, `app.js`, `styles.css` | web-интерфейс | Участник 4 (+ все показывают) |
+| `src/test/*` | тесты | каждый — тест своей части |
+
+---
+
+## 12. Распределение по участникам (КР3)
+
+### Участник 1 — Docker, PostgreSQL, Flyway, сущности
+
+1. **Docker Compose** (`backend/docker-compose.yml`): два сервиса — `db` (образ `postgres:17-alpine`) и `backend` (собирается из `Dockerfile`).
+   - `depends_on: condition: service_healthy` — backend стартует, только когда PostgreSQL готов (`pg_isready`).
+   - healthcheck backend — запрос `GET /actuator/health`, ответ должен содержать `UP`.
+   - `ports: "127.0.0.1:55432:5432"` — порт открыт только на этом компьютере.
+   - `volumes: hotel_pgdata` — данные базы переживают `docker compose down` (удаляет только `down -v`).
+   - Переменные `${POSTGRES_PASSWORD}` берутся из корневого `.env` (`--env-file .env`). Секретов в коде нет.
+2. **Dockerfile** двухэтапный: образ с Maven собирает jar, в итоговый лёгкий образ с JRE копируется только jar; запуск не от root.
+3. **Flyway**: при старте смотрит таблицу `flyway_schema_history` и выполняет новые файлы `V<номер>__<описание>.sql` по порядку.
+   Уже выполненную миграцию менять нельзя — только добавлять новую. V1 = таблицы КР1, V2 = пользователи/аудит,
+   V3 = новые поля и индексы (`ALTER TABLE ... ADD COLUMN`), V4 = демо-данные.
+4. **Ограничения в БД**: `PRIMARY KEY`, `REFERENCES` (внешние ключи), `UNIQUE (code)`, `CHECK (check_out > check_in)`,
+   `EXCLUDE USING gist (room_id WITH =, daterange(...) WITH &&)` — PostgreSQL сам не даст двум активным броням занять номер на пересекающиеся даты.
+5. **JPA-сущности** (`domain/`): `@Entity @Table(name="bookings")`, `@Id UUID`, `@ManyToOne` (бронь → гость, номер),
+   `@Enumerated(EnumType.STRING)` (статус хранится текстом), `@ElementCollection` (теги в `booking_tags`),
+   `@Version` (optimistic locking), общий родитель `AuditedVersionedEntity` (`createdAt`, `updatedAt`, `version`, `@PrePersist`/`@PreUpdate`).
+6. **Spring Data**: `interface BookingRepository extends JpaRepository<Booking, UUID>` — методы `findById`, `save`, `findAll(spec, pageable)`
+   уже готовы; `countByArchivedFalse()` — запрос по имени метода; `@Query` — свой JPQL (аналитика, `hasOverlap`).
+
+Показать: `docker compose ps` (healthy), `\dt` в psql, таблицу `flyway_schema_history`, файл V3.
+
+### Участник 2 — безопасность: вход, JWT, роли, пароли, пользователи, аудит
+
+1. **SecurityConfig**: `STATELESS` (сервер не хранит сессию — всё в токене), открыты только статика, `/api/auth/login|refresh|logout`, health;
+   `/api/**` — только с токеном; Swagger — только ADMIN. `@EnableMethodSecurity` включает `@PreAuthorize` на методах контроллеров.
+2. **JwtService**: `issue` — создаёт JWT (subject = id пользователя, роли, срок 15 мин, подпись HMAC секретом из `.env`); `parse` — проверяет подпись и срок.
+3. **JwtAuthenticationFilter**: читает `Authorization: Bearer ...`, проверяет токен, **роли и активность берёт из БД** (отключённый пользователь сразу теряет доступ).
+4. **Refresh** (`AuthService.refresh`): ротация — старый токен отзывается, выдаётся новый; повторное предъявление старого = кража → отзыв всех сессий.
+5. **Пароли**: `BCryptPasswordEncoder(12)` (медленный хеш с солью), `PasswordPolicy` (12+ символов, разные типы, без логина),
+   `LoginAttemptService` (5 ошибок → блокировка), `PasswordChangeRequiredFilter` (временный пароль → 403 везде, кроме смены пароля).
+6. **Пользователи** (`UserAdminService`): создание с серверным временным паролем (`TemporaryPasswordGenerator`, `SecureRandom`), изменение ролей,
+   отключение, сброс пароля; нельзя отключить себя.
+7. **Аудит**: `AuditService.record(...)` вызывается из сервисов; входы пишутся в отдельной транзакции (`REQUIRES_NEW`), чтобы неудачный вход
+   сохранился, хотя запрос закончился ошибкой. **Correlation ID** — метка запроса из `CorrelationIdFilter`, есть в заголовке ответа, в аудите и в ошибках.
+
+Показать: вход под 3 ролями, 403 у VIEWER, смену временного пароля, блокировку после 5 ошибок, аудит с поиском `LOGIN_FAILED`.
+
+### Участник 3 — бизнес-логика, поиск, фильтры, сортировка, пагинация, аналитика
+
+1. **BookingService** — все правила (список в Javadoc класса): даты, вместимость, занятость номера, переходы статусов,
+   запрет менять завершённую бронь, архив. Метод `check(...)` **только проверяет**, `apply(...)` **только меняет** —
+   поэтому ошибка в одной записи массовой операции или строке CSV не оставляет «полуизменённую» бронь.
+2. **Optimistic locking**: клиент присылает `version`, которую видел; если в БД уже другая — 409 «изменил другой пользователь».
+   Плюс `@Version` в Hibernate: `UPDATE ... WHERE id=? AND version=?`.
+3. **CancellationRiskCalculator** — вычисляемый показатель (баллы → LOW/MEDIUM/HIGH/CRITICAL), тест `CancellationRiskCalculatorTest`.
+4. **Поиск и фильтры**: `BookingFilterParser` разбирает строку `q` (`номер:301 статус:подтверждено сумма>=20000 ...`) в объект `BookingFilter`;
+   `BookingSpecifications` строит из него запрос через **Criteria API** (`cb.equal`, `cb.like`, `cb.greaterThanOrEqualTo`).
+   **SQL-инъекция невозможна**: строка пользователя никогда не склеивается с SQL, значения уходят параметрами.
+5. **Сортировка и пагинация**: `PageableFactory` — короткое имя поля (`price`) → поле сущности (`totalPrice`) только из белого списка;
+   `size` 1–100. Spring Data сам добавляет `ORDER BY ... LIMIT ... OFFSET` и считает `totalElements`.
+6. **Аналитика** (`AnalyticsService`): `count`, `avg`, `sum`, `group by` выполняет PostgreSQL (JPQL в `BookingRepository`).
+
+Показать: фильтры из KR3.md, сортировку «Сумма ↓», «На странице: 5», 409 при старой version, аналитику.
+
+### Участник 4 — REST API, DTO, ошибки, CSV, заметки, справочники, web-интерфейс
+
+1. **REST-контроллеры**: `@RestController`, `@RequestMapping("/api/bookings")`, `@GetMapping/@PostMapping/@PutMapping/@DeleteMapping`,
+   `@PathVariable UUID id`, `@RequestParam`, `@RequestBody`. Статусы: 201 при создании, 204 без тела.
+   `DELETE /api/bookings/{id}` = архив, `DELETE .../permanent` = удаление (ADMIN + заголовок с кодом брони).
+2. **DTO** (`dto/*`, Java `record`): `BookingRequest` (что принимаем) и `BookingResponse` (что отдаём). Сущность наружу не отдаём —
+   иначе утекут служебные поля и ленивые связи. Валидация аннотациями `@NotNull`, `@Size`, `@Min`, `@Pattern`.
+3. **Ошибки** (`GlobalExceptionHandler`, `@RestControllerAdvice`): исключение → `ApiError` JSON; stack trace только в лог.
+4. **Массовые операции** (`POST /bulk`): цикл по UUID, ошибки собираются в `failures`, операция не прерывается.
+5. **CSV** (`CsvBookingService`, Apache Commons CSV): `preview` — проверка без записи (`@Transactional(readOnly = true)`),
+   `apply` — запись корректных строк, режимы CREATE_ONLY / UPSERT_BY_CODE; экспорт по текущему фильтру, защита от формул Excel (`'=`).
+6. **Заметки** (`NoteService`): автор и время, закрепление, менять может автор или ADMIN.
+7. **Справочники**: номера (`RoomService`, вкл/выкл без удаления, только ADMIN), гости (`GuestService`).
+8. **Web-интерфейс** (`static/app.js`): `fetch` к API, access-токен в памяти, refresh в HttpOnly-cookie, при 401 — автоматический refresh.
+
+Показать: Swagger, CSV preview → apply с файлом `backend/examples/bookings-import.csv`, массовую операцию с ошибками, заметки.
+
+---
+
+## 13. Сценарий демонстрации КР3
+
+Подготовка: Docker Desktop запущен; `powershell -ExecutionPolicy Bypass -File .\backend\start-compose.ps1`;
+для чистых данных перед защитой — `stop-compose.ps1 -ResetData` и снова `start-compose.ps1`.
+
+1. Docker Desktop → `hotel-booking`: `db` и `backend` *healthy*. Открыть http://localhost:8080/actuator/health. (Участник 1)
+2. Вход `admin@hotel.local` с паролем из `.env` → смена временного пароля. (Участник 2)
+3. «Пользователи» → создать менеджера и наблюдателя, показать временные пароли; войти под наблюдателем в окне инкогнито — нет кнопок, 403. (Участник 2)
+4. «Бронирования» → «+ Бронь» → сумма и риск посчитаны сервером; «Изменить» → подтвердить, предоплата → риск LOW. (Участник 4/3)
+5. Тот же номер на те же даты → 409; гостей больше мест → 400. (Участник 3)
+6. Поиск: `номер:301`, `статус:подтверждено предоплата:нет`, `сумма>=20000`, `тег:vip`; сортировка и размер страницы. (Участник 3)
+7. «В архив» → `архив:да` → «Восстановить»; ADMIN удаляет архивную бронь с вводом кода. (Участник 4)
+8. Массовая операция по нескольким броням с ошибками. Заметки: добавить, закрепить, изменить. (Участник 4)
+9. «Импорт CSV» → проверить (3 + 4 ошибки) → применить; «Экспорт CSV». (Участник 4)
+10. «Аналитика», «Журнал аудита» (поиск `LOGIN_FAILED`, correlation ID). (Участник 3 / 2)
+11. Swagger UI. Миграции V1–V4 и `\dt` в psql. (Участник 4 / 1)
+12. `cd backend; mvn test` — 38 тестов зелёные. (любой)
+
+---
+
+## 14. Вопросы КР3 — короткие ответы
+
+| Вопрос | Ответ | Где |
+|---|---|---|
+| Что такое REST | ресурсы по URL + HTTP-методы (GET читать, POST создать, PUT изменить, DELETE удалить), ответ JSON, сервер не хранит состояние клиента | `controller/*` |
+| Что делает Spring Boot | запускает встроенный Tomcat, сам создаёт объекты (бины) и связывает их через конструкторы, настройки в `application.yml` | `HotelBackendApplication` |
+| Зачем слои controller/service/repository | контроллер — HTTP, сервис — правила и транзакции, репозиторий — БД; каждый меняется отдельно | раздел 11 |
+| Что такое JPA / Hibernate | ORM: класс `@Entity` ↔ таблица, Hibernate сам пишет SQL | `domain/*` |
+| Зачем Flyway и `ddl-auto: validate` | схема меняется только версионными SQL-миграциями, одинаково у всех; Hibernate лишь проверяет, что сущности совпадают с таблицами | `db/migration` |
+| Что такое JWT | подписанная строка с id и ролями пользователя; сервер проверяет подпись и срок, в БД не ходит за сессией | `JwtService` |
+| Зачем refresh-токен | access живёт 15 минут (украли — ненадолго), refresh позволяет получить новый без пароля и может быть отозван на сервере | `AuthService.refresh` |
+| Как хранятся пароли | только BCrypt-хеш с солью; временный пароль показывается один раз | `UserAccount.passwordHash` |
+| Как защищены от перебора | 5 ошибок → блокировка на 5+ минут; одинаковый ответ для неверного email и пароля | `LoginAttemptService` |
+| Чем отличаются роли | VIEWER только читает; MANAGER + создаёт/меняет/архивирует, CSV, заметки; ADMIN + справочник номеров, пользователи, аудит, удаление, Swagger | `@PreAuthorize` |
+| Что такое optimistic locking | поле `version`; при изменении сравнивается с присланным; не совпало → 409, чужие изменения не затираются | `verifyVersion`, `@Version` |
+| Почему архив вместо удаления | данные и история сохраняются, бронь можно восстановить | `Booking.archive()` |
+| Как сделан фильтр без SQL-инъекций | парсер → типизированный объект → Criteria API с параметрами; сортировка из белого списка | `filter/*`, `PageableFactory` |
+| Как работает пагинация | `Pageable(page, size, sort)` → `LIMIT/OFFSET` + `count`; ответ `PageResponse` | `PageResponse` |
+| Как работает импорт CSV | preview проверяет всё без записи и считает корректные/ошибочные строки; apply записывает корректные | `CsvBookingService` |
+| Что такое correlation ID | метка HTTP-запроса; по ней ошибку из ответа находят в аудите и логах | `CorrelationIdFilter` |
+| Почему контроллер не отдаёт @Entity | утечка полей (хеши, связи), ленивые связи вне транзакции, жёсткая связь API со схемой БД | `dto/*`, `BookingMapper` |
+| Какие HTTP-коды и когда | 200/201/204 — успех; 400 — данные/правило; 401 — нет входа; 403 — нет прав; 404 — нет записи; 409 — конфликт версии/занятый номер | `GlobalExceptionHandler` |
+| Как запустить и как проверить, что работает | `start-compose.ps1` → healthy → `/actuator/health` = UP | `KR3.md` |
+| Какие тесты есть | контекст, риск/статусы, фильтр (парсер + запросы к БД), пароли, сквозной сценарий безопасности | `backend/src/test` |
+
+## 15. Возможный лайвкодинг — куда смотреть
+
+| Попросят | Что менять |
+|---|---|
+| новый фильтр, например `гостей>=3` | `BookingFilter` (поле), `BookingFilterParser` (регулярка как `PRICE`), `BookingSpecifications` (`compare(... root.get("guestsCount") ...)`), тест в `BookingFilterParserTest` |
+| новое поле сортировки | одна строка в `PageableFactory.BOOKING_FIELDS` |
+| новое бизнес-правило | `BookingService.check(...)` — `throw new BadRequestException("...")` |
+| новое поле брони | миграция `V5__...sql` (`ALTER TABLE bookings ADD COLUMN ...`), поле в `Booking`, в `BookingRequest`/`BookingResponse`, `BookingMapper`, `apply(...)` |
+| новый показатель аналитики | метод `@Query` в `BookingRepository` + поле в `AnalyticsResponse` + `AnalyticsService` |
+| новый эндпоинт | метод в контроллере с `@GetMapping` и `@PreAuthorize`, логика — в сервисе |
+| поменять правило риска | `CancellationRiskCalculator` + `CancellationRiskCalculatorTest` |
+
+После изменения кода: `mvn test` в `backend/`, затем `start-compose.ps1` (пересоберёт образ).

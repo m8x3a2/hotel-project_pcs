@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Гостиница — бронирование номеров</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css?v=3">
+</head>
+<body>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- ===================== Вход ===================== -->
+<section id="login-view" class="login-shell">
+    <form id="login-form" class="card login-card" autocomplete="on">
+        <div class="brand-mark">H</div>
+        <h1>Гостиница</h1>
+        <p class="muted">Бронирование номеров · КР3</p>
+        <label>Email
+            <input id="login-email" type="email" autocomplete="username" required maxlength="254">
+        </label>
+        <label>Пароль
+            <input id="login-password" type="password" autocomplete="current-password" required maxlength="128">
+        </label>
+        <button class="primary" type="submit">Войти</button>
+        <p id="login-error" class="error" hidden></p>
+    </form>
+</section>
+
+<!-- ===================== Приложение ===================== -->
+<div id="app-view" class="app-shell" hidden>
+    <aside class="sidebar">
+        <div class="brand"><span class="brand-mark small">H</span><strong>Гостиница</strong></div>
+        <nav id="navigation">
+            <button data-tab="dashboard" class="nav-item active">Аналитика</button>
+            <button data-tab="bookings" class="nav-item">Бронирования</button>
+            <button data-tab="guests" class="nav-item">Гости</button>
+            <button data-tab="rooms" class="nav-item">Номера</button>
+            <button data-tab="users" class="nav-item admin-only">Пользователи</button>
+            <button data-tab="audit" class="nav-item admin-only">Журнал аудита</button>
+            <a href="/swagger-ui.html" class="nav-item nav-link admin-only" target="_blank" rel="noopener">Swagger API ↗</a>
+        </nav>
+        <div class="sidebar-footer">
+            <div id="current-user" class="current-user"></div>
+            <button id="copy-token" class="secondary full admin-only" title="Для кнопки Authorize в Swagger">Скопировать JWT</button>
+            <button id="change-password" class="secondary full">Сменить пароль</button>
+            <button id="logout" class="danger-outline full">Выйти</button>
+        </div>
+    </aside>
+
+    <main class="content">
+        <header class="topbar">
+            <div>
+                <h2 id="page-title">Аналитика</h2>
+                <p id="page-subtitle" class="muted">Сводные показатели по бронированиям</p>
+            </div>
+        </header>
+
+        <!-- Аналитика -->
+        <section id="tab-dashboard" class="tab active">
+            <div id="metric-grid" class="metric-grid"></div>
+            <div class="grid-2">
+                <article class="card chart-card"><h3>По номерам</h3><div id="chart-rooms" class="bar-list"></div></article>
+                <article class="card chart-card"><h3>По типам номеров</h3><div id="chart-types" class="bar-list"></div></article>
+                <article class="card chart-card"><h3>По статусам</h3><div id="chart-status" class="bar-list"></div></article>
+                <article class="card chart-card"><h3>По риску отмены</h3><div id="chart-risk" class="bar-list"></div></article>
+            </div>
+        </section>
+
+        <!-- Бронирования -->
+        <section id="tab-bookings" class="tab">
+            <div class="toolbar card">
+                <div class="search-wrap">
+                    <input id="booking-search" type="search" maxlength="500"
+                           placeholder="Иванов номер:301 статус:подтверждено предоплата:нет сумма>=20000">
+                    <button id="search-bookings" class="primary">Найти</button>
+                </div>
+                <div class="toolbar-row">
+                    <label class="inline-label">Сортировка
+                        <select id="booking-sort">
+                            <option value="checkIn,desc">Заезд ↓</option>
+                            <option value="checkIn,asc">Заезд ↑</option>
+                            <option value="price,desc">Сумма ↓</option>
+                            <option value="price,asc">Сумма ↑</option>
+                            <option value="guest,asc">Гость А→Я</option>
+                            <option value="room,asc">Номер ↑</option>
+                            <option value="code,asc">Код ↑</option>
+                            <option value="risk,desc">Риск ↓</option>
+                            <option value="updated,desc">Изменены недавно</option>
+                        </select>
+                    </label>
+                    <label class="inline-label">На странице
+                        <select id="booking-size">
+                            <option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option>
+                        </select>
+                    </label>
+                    <div class="toolbar-actions editor-only">
+                        <button id="add-booking" class="primary">+ Бронь</button>
+                        <button id="bulk-action" class="secondary">Массовая операция</button>
+                        <button id="import-csv" class="secondary">Импорт CSV</button>
+                        <button id="export-csv" class="secondary">Экспорт CSV</button>
+                    </div>
+                </div>
+                <details class="filter-help">
+                    <summary>Подсказка по строке поиска</summary>
+                    <p>Свободный текст ищется в коде брони, ФИО/email/телефоне гостя, пожеланиях; число 1–4 цифры — номер комнаты. Команды:</p>
+                    <code>номер:301 · тип:стандарт|делюкс|люкс · статус:создано|подтверждено|завершено|отменено · предоплата:да|нет ·
+                        риск:низкий|средний|высокий|критический|нет · тег:vip · сумма&gt;=20000 (&lt; &lt;= = &gt;= &gt;) ·
+                        заезд&gt;=2026-11-01 · архив:нет|да|все · "текст в кавычках"</code>
+                </details>
+            </div>
+            <div class="card table-card">
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr>
+                            <th class="editor-only"><input id="select-all" type="checkbox" aria-label="Выбрать все"></th>
+                            <th>Код</th><th>Гость</th><th>Номер</th><th>Даты</th><th>Гостей</th><th>Статус</th>
+                            <th>Сумма</th><th>Предоплата</th><th>Риск</th><th>Теги</th><th>Действия</th>
+                        </tr></thead>
+                        <tbody id="bookings-body"></tbody>
+                    </table>
+                </div>
+                <div class="pager">
+                    <button id="bookings-prev" class="secondary">←</button>
+                    <span id="bookings-page"></span>
+                    <button id="bookings-next" class="secondary">→</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Гости -->
+        <section id="tab-guests" class="tab">
+            <div class="toolbar card">
+                <div class="search-wrap">
+                    <input id="guest-search" type="search" maxlength="100" placeholder="ФИО, email или телефон">
+                    <button id="search-guests" class="primary">Найти</button>
+                </div>
+                <button id="add-guest" class="primary editor-only">+ Гость</button>
+            </div>
+            <div class="card table-card">
+                <div class="table-scroll"><table>
+                    <thead><tr><th>ФИО</th><th>Телефон</th><th>Email</th><th>Добавлен</th><th class="editor-only">Действия</th></tr></thead>
+                    <tbody id="guests-body"></tbody>
+                </table></div>
+                <div class="pager">
+                    <button id="guests-prev" class="secondary">←</button>
+                    <span id="guests-page"></span>
+                    <button id="guests-next" class="secondary">→</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Номера -->
+        <section id="tab-rooms" class="tab">
+            <div class="toolbar card">
+                <p class="muted">Справочник номеров. Отключённый номер нельзя выбрать для новой брони, но старые брони сохраняются.</p>
+                <button id="add-room" class="primary admin-only">+ Номер</button>
+            </div>
+            <div class="card table-card"><div class="table-scroll"><table>
+                <thead><tr><th>Номер</th><th>Тип</th><th>Вместимость</th><th>Цена за ночь</th><th>Активен</th><th class="admin-only">Действия</th></tr></thead>
+                <tbody id="rooms-body"></tbody>
+            </table></div></div>
+        </section>
+
+        <!-- Пользователи -->
+        <section id="tab-users" class="tab admin-only">
+            <div class="toolbar card">
+                <div class="search-wrap">
+                    <input id="user-search" type="search" maxlength="100" placeholder="Email или имя">
+                    <button id="search-users" class="primary">Найти</button>
+                </div>
+                <button id="add-user" class="primary">+ Пользователь</button>
+            </div>
+            <div class="card table-card">
+                <div class="table-scroll"><table>
+                    <thead><tr><th>Email</th><th>Имя</th><th>Роли</th><th>Активен</th><th>Временный пароль</th><th>Блокировка</th><th>Действия</th></tr></thead>
+                    <tbody id="users-body"></tbody>
+                </table></div>
+                <div class="pager">
+                    <button id="users-prev" class="secondary">←</button>
+                    <span id="users-page"></span>
+                    <button id="users-next" class="secondary">→</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Аудит -->
+        <section id="tab-audit" class="tab admin-only">
+            <div class="toolbar card">
+                <div class="search-wrap">
+                    <input id="audit-search" type="search" maxlength="200" placeholder="Пользователь, событие, описание, correlation ID">
+                    <button id="search-audit" class="primary">Найти</button>
+                </div>
+                <label class="inline-label">Сортировка
+                    <select id="audit-sort">
+                        <option value="occurred,desc">Новые сверху</option>
+                        <option value="occurred,asc">Старые сверху</option>
+                        <option value="actor,asc">По пользователю</option>
+                        <option value="event,asc">По типу события</option>
+                    </select>
+                </label>
+            </div>
+            <div class="card table-card">
+                <div class="table-scroll"><table>
+                    <thead><tr><th>Время</th><th>Пользователь</th><th>Событие</th><th>Сущность</th><th>Описание</th><th>Correlation ID</th></tr></thead>
+                    <tbody id="audit-body"></tbody>
+                </table></div>
+                <div class="pager">
+                    <button id="audit-prev" class="secondary">←</button>
+                    <span id="audit-page"></span>
+                    <button id="audit-next" class="secondary">→</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Универсальный диалог для форм -->
+<dialog id="entity-dialog"><form id="entity-form" method="dialog" class="dialog-form"></form></dialog>
+
+<!-- Заметки -->
+<dialog id="notes-dialog">
+    <div class="dialog-form wide">
+        <div class="dialog-head"><h3 id="notes-title">Заметки</h3><button type="button" data-close-dialog="notes-dialog" class="icon-button">×</button></div>
+        <div id="notes-list"></div>
+        <form id="note-form" class="editor-only">
+            <textarea id="note-body" maxlength="4000" required placeholder="Текст заметки"></textarea>
+            <label class="inline"><input id="note-pinned" type="checkbox"> Закрепить</label>
+            <div class="button-row">
+                <button id="note-submit" class="primary" type="submit">Добавить заметку</button>
+                <button id="note-cancel" class="secondary" type="button" hidden>Отменить изменение</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Массовая операция -->
+<dialog id="bulk-dialog">
+    <form id="bulk-form" class="dialog-form" method="dialog">
+        <div class="dialog-head"><h3>Массовая операция</h3><button type="button" data-close-dialog="bulk-dialog" class="icon-button">×</button></div>
+        <p id="bulk-count" class="muted"></p>
+        <label>Действие
+            <select id="bulk-type">
+                <option value="ARCHIVE">В архив</option>
+                <option value="RESTORE">Восстановить из архива</option>
+                <option value="SET_STATUS">Сменить статус</option>
+                <option value="ADD_TAG">Добавить тег</option>
+                <option value="REMOVE_TAG">Удалить тег</option>
+            </select>
+        </label>
+        <label id="bulk-status-wrap" hidden>Новый статус
+            <select id="bulk-status">
+                <option value="CONFIRMED">Подтверждено</option>
+                <option value="COMPLETED">Завершено</option>
+                <option value="CANCELLED">Отменено</option>
+                <option value="CREATED">Создано</option>
+            </select>
+        </label>
+        <label id="bulk-tag-wrap" hidden>Тег<input id="bulk-tag" maxlength="50"></label>
+        <button class="primary" type="submit">Выполнить</button>
+        <div id="bulk-result"></div>
+    </form>
+</dialog>
+
+<!-- Импорт CSV -->
+<dialog id="csv-dialog">
+    <div class="dialog-form wide">
+        <div class="dialog-head"><h3>Импорт CSV</h3><button type="button" data-close-dialog="csv-dialog" class="icon-button">×</button></div>
+        <p class="muted">Колонки: code, guestEmail, roomNumber, checkIn, checkOut, guestsCount, status, [prepaid, specialRequests, tags]. Теги через «|».
+            Файл экспорта подходит для импорта.</p>
+        <input id="csv-file" type="file" accept=".csv,text/csv">
+        <label>Режим
+            <select id="csv-mode">
+                <option value="CREATE_ONLY">Только новые брони</option>
+                <option value="UPSERT_BY_CODE">Новые + обновить существующие по коду</option>
+            </select>
+        </label>
+        <div class="button-row">
+            <button id="csv-preview" class="secondary" type="button">1. Проверить</button>
+            <button id="csv-apply" class="primary" type="button" disabled>2. Применить</button>
+        </div>
+        <div id="csv-result"></div>
+    </div>
+</dialog>
+
+<script src="/app.js?v=3" defer></script>
+</body>
+</html>

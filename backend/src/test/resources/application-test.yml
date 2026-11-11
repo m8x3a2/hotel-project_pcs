@@ -1,0 +1,23 @@
+# Профиль для тестов: H2 в памяти вместо PostgreSQL, схема строится из JPA-сущностей.
+spring:
+  datasource:
+    url: jdbc:h2:mem:hotel;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret-base64: dGVzdC1zZWNyZXQtdGVzdC1zZWNyZXQtdGVzdC1zZWNyZXQ=
+    issuer: hotel-booking-test
+    access-minutes: 10
+    refresh-days: 1
+  bootstrap:
+    email: admin@test.local
+    name: Test Admin
+    password: Start-Password-2026!

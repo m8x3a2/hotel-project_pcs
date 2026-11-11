@@ -3,7 +3,9 @@
 Контрольные работы по дисциплине «Программирование корпоративных систем»:
 
 - **КР №1** — консольная информационная система на Java + PostgreSQL (пакеты `ui`, `service`, `repository`, `model`);
-- **КР №2** — настольное JavaFX-приложение (пакет `fx`) с тем же слоем service/repository и той же базой данных из КР №1.
+- **КР №2** — настольное JavaFX-приложение (пакет `fx`) с тем же слоем service/repository и той же базой данных из КР №1;
+- **КР №3** — серверная часть: Spring Boot REST API + PostgreSQL + Flyway + JWT + Swagger в Docker и web-интерфейс
+  (папка [`backend/`](backend), подробности — [KR3.md](KR3.md)). Этот API будет использовать Android-приложение КР №4.
 
 Вариант:
 - **Предметная область:** гостиница
@@ -16,11 +18,16 @@
 КР1:  Console UI (ui)                    \
                                           ->  Service (service)  ->  Repository / JDBC (repository)  ->  PostgreSQL
 КР2:  FXML (view) + Controller (fx)      /
+
+КР3:  Web UI / Swagger / Android (КР4)  --HTTP+JWT-->  controller -> service -> repository (Spring Data JPA) -> PostgreSQL (Flyway)
+                                                        (Spring Boot в Docker, папка backend/)
 ```
 
 Быстрый старт: создать базу (раздел «Инструкция по запуску»), затем
 - консоль (КР1): `mvn compile exec:java`;
-- JavaFX (КР2): `mvn javafx:run` или в IntelliJ запустить `ru.mirea.hotel.fx.HotelFxLauncher`.
+- JavaFX (КР2): `mvn javafx:run` или в IntelliJ запустить `ru.mirea.hotel.fx.HotelFxLauncher`;
+- backend (КР3): запустить Docker Desktop и из корня проекта выполнить
+  `powershell -ExecutionPolicy Bypass -File .\backend\start-compose.ps1`, затем открыть http://localhost:8080/.
 
 ---
 
@@ -67,8 +74,12 @@
 
 ```
 hotel-project_pcs/
-├── pom.xml                          # Maven: версия Java, зависимости, запуск
+├── pom.xml                          # Maven: версия Java, зависимости, запуск (КР1, КР2)
 ├── README.md                        # этот файл
+├── KR3.md                           # КР3: что сделано, как запустить, что показать на защите
+├── .env.example                     # КР3: пример настроек Docker (настоящий .env не в git)
+├── backend/                         # КР3: Spring Boot REST API + web-интерфейс (см. раздел «КР3» ниже)
+├── team_docs/                       # разбор проекта и Java для команды
 ├── hotel_export.xlsx                # пример экспортированного Excel-файла
 ├── sql/
 │   └── init.sql                     # создание таблиц + тестовые данные
@@ -339,3 +350,66 @@ powershell -ExecutionPolicy Bypass -File .\backend\start-compose.ps1
 | Рабочий проект Maven | `pom.xml` (`mvn javafx:run`) |
 | Скрипты БД и тестовые данные | `sql/init.sql` |
 | Демонстрация | запуск по инструкции выше |
+
+---
+
+## КР3: Spring Boot backend и web-интерфейс
+
+Полное описание (что и где реализовано по каждому пункту задания, сценарий защиты) — в **[KR3.md](KR3.md)**.
+
+Коротко:
+- отдельный Maven-проект [`backend/`](backend): Java 21, Spring Boot 3.5.5, Spring Data JPA, Spring Security + JWT
+  (access 15 мин + refresh-сессии на сервере), Flyway, Swagger (springdoc), Apache Commons CSV, тесты на H2;
+- база — та же схема КР1 (`guests`, `rooms`, `bookings`) с UUID-ключами, новые поля и таблицы добавлены миграциями V2–V4;
+- основная сущность — бронирование `/api/bookings`, справочник — номера `/api/rooms`, роли VIEWER / MANAGER / ADMIN;
+- CRUD с архивом и `version`, умный поиск и фильтры, пагинация, массовые операции, заметки, импорт/экспорт CSV,
+  аналитика, управление пользователями, журнал аудита с correlation ID;
+- PostgreSQL 17 и backend запускаются Docker Compose, секреты — в корневом `.env` (в git только `.env.example`).
+
+### Запуск
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\backend\start-compose.ps1
+```
+
+| Что | Адрес |
+|---|---|
+| Web-интерфейс | http://localhost:8080/ |
+| Swagger UI (ADMIN) | http://localhost:8080/swagger-ui.html |
+| Health | http://localhost:8080/actuator/health |
+| PostgreSQL | `localhost:55432`, база `hotel_booking`, пользователь `hotel_app` |
+
+Вход: `admin@hotel.local`, временный пароль — `BOOTSTRAP_ADMIN_PASSWORD` в `.env` (после входа его нужно сменить).
+Остановка без потери данных: `powershell -ExecutionPolicy Bypass -File .\backend\stop-compose.ps1`
+(с `-ResetData` — с удалением базы). Тесты: `cd backend` и `mvn test`.
+
+### Структура `backend/`
+
+```
+backend/
+├── pom.xml, Dockerfile, docker-compose.yml
+├── init-env.ps1 / start-compose.ps1 / stop-compose.ps1
+├── examples/                        # CSV для импорта, http-requests.http, check_api.py
+└── src/
+    ├── main/java/ru/mirea/hotel/backend/
+    │   ├── controller/  service/  repository/  domain/  dto/
+    │   ├── security/  filter/  error/  config/  web/
+    │   └── HotelBackendApplication.java
+    ├── main/resources/
+    │   ├── application.yml
+    │   ├── db/migration/V1..V4__*.sql   # Flyway
+    │   └── static/                      # web-интерфейс (index.html, app.js, styles.css)
+    └── test/java/...                    # 38 тестов (H2)
+```
+
+## Что сдаётся на защиту КР3
+
+| Требование | Где находится |
+|---|---|
+| Spring Boot backend по теме | `backend/src/main/java/ru/mirea/hotel/backend/` |
+| PostgreSQL + миграции Flyway | `backend/src/main/resources/db/migration/` |
+| Запуск через Docker | `backend/docker-compose.yml`, `backend/Dockerfile`, `backend/start-compose.ps1`, `.env.example` |
+| REST API для Android (КР4) | `/api/**`, описание в Swagger и [KR3.md](KR3.md) |
+| Web-интерфейс | `backend/src/main/resources/static/` |
+| Тесты | `backend/src/test/` (`mvn test`) |
+| Описание выполненного | [KR3.md](KR3.md) |
