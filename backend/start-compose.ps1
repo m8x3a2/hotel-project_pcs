@@ -35,7 +35,7 @@ foreach ($line in Get-Content -LiteralPath $EnvPath) {
     if ($eq -gt 0) { $values[$t.Substring(0, $eq)] = $t.Substring($eq + 1) }
 }
 $appPort = if ($values["APP_PORT"]) { $values["APP_PORT"] } else { "8080" }
-$pgPort = if ($values["POSTGRES_PORT"]) { $values["POSTGRES_PORT"] } else { "55432" }
+$pgPort = if ($values["POSTGRES_PORT"]) { $values["POSTGRES_PORT"] } else { "15432" }
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green

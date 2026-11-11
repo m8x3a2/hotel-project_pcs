@@ -791,7 +791,7 @@ bookings (id PK, guest_id FK -> guests.id, room_id FK -> rooms.id,
 1. **Docker Compose** (`backend/docker-compose.yml`): два сервиса — `db` (образ `postgres:17-alpine`) и `backend` (собирается из `Dockerfile`).
    - `depends_on: condition: service_healthy` — backend стартует, только когда PostgreSQL готов (`pg_isready`).
    - healthcheck backend — запрос `GET /actuator/health`, ответ должен содержать `UP`.
-   - `ports: "127.0.0.1:55432:5432"` — порт открыт только на этом компьютере.
+   - `ports: "127.0.0.1:15432:5432"` — порт открыт только на этом компьютере.
    - `volumes: hotel_pgdata` — данные базы переживают `docker compose down` (удаляет только `down -v`).
    - Переменные `${POSTGRES_PASSWORD}` берутся из корневого `.env` (`--env-file .env`). Секретов в коде нет.
 2. **Dockerfile** двухэтапный: образ с Maven собирает jar, в итоговый лёгкий образ с JRE копируется только jar; запуск не от root.

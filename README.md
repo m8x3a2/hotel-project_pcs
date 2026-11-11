@@ -377,7 +377,7 @@ powershell -ExecutionPolicy Bypass -File .\backend\start-compose.ps1
 | Web-интерфейс | http://localhost:8080/ |
 | Swagger UI (ADMIN) | http://localhost:8080/swagger-ui.html |
 | Health | http://localhost:8080/actuator/health |
-| PostgreSQL | `localhost:55432`, база `hotel_booking`, пользователь `hotel_app` |
+| PostgreSQL | `localhost:15432`, база `hotel_booking`, пользователь `hotel_app` |
 
 Вход: `admin@hotel.local`, временный пароль — `BOOTSTRAP_ADMIN_PASSWORD` в `.env` (после входа его нужно сменить).
 Остановка без потери данных: `powershell -ExecutionPolicy Bypass -File .\backend\stop-compose.ps1`

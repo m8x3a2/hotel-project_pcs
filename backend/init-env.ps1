@@ -5,7 +5,7 @@ param(
     [string]$AdminEmail = "admin@hotel.local",
     [string]$AdminName = "Hotel Administrator",
     [int]$AppPort = 8080,
-    [int]$PostgresPort = 55432,
+    [int]$PostgresPort = 15432,
     [switch]$Force
 )
 

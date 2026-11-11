@@ -5,7 +5,7 @@ spring:
     name: hotel-booking
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:55432/hotel_booking}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/hotel_booking}
     username: ${SPRING_DATASOURCE_USERNAME:hotel_app}
     password: ${SPRING_DATASOURCE_PASSWORD:change_me}
     hikari:

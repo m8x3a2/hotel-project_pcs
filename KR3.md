@@ -45,7 +45,11 @@ powershell -ExecutionPolicy Bypass -File .\backend\stop-compose.ps1
 | OpenAPI JSON (только ADMIN) | http://localhost:8080/v3/api-docs |
 | Health | http://localhost:8080/actuator/health |
 | Для Android-эмулятора (КР4) | http://10.0.2.2:8080/api |
-| PostgreSQL | `jdbc:postgresql://localhost:55432/hotel_booking`, пользователь `hotel_app`, пароль — `POSTGRES_PASSWORD` в `.env` |
+| PostgreSQL | `jdbc:postgresql://localhost:15432/hotel_booking`, пользователь `hotel_app`, пароль — `POSTGRES_PASSWORD` в `.env` |
+
+> Порт PostgreSQL — **15432**, а не 55432 из задания: Windows (Hyper-V) резервирует случайные диапазоны
+> портов из 49152–65535, и однажды 55432 оказался занят (ошибка `bind: An attempt was made to access a socket in a way
+> forbidden by its access permissions`). Порт меняется одной строкой `POSTGRES_PORT` в `.env`.
 
 **Первый вход:** `admin@hotel.local`, пароль — `BOOTSTRAP_ADMIN_PASSWORD` из `.env`.
 Пароль временный: сервер сразу попросит задать постоянный (12+ символов, заглавная и строчная буква, цифра, спецсимвол, без слова `admin`).
@@ -251,7 +255,7 @@ stack trace клиенту не отдаётся (только в лог сер�
 ### Docker Compose — `backend/docker-compose.yml`
 
 PostgreSQL 17 и backend — отдельные сервисы; параметры из корневого `.env`; порты опубликованы только на `127.0.0.1`
-(8080 и 55432); healthcheck у обоих (`pg_isready` и `GET /actuator/health`); данные в именованном томе — обычный
+(8080 и 15432); healthcheck у обоих (`pg_isready` и `GET /actuator/health`); данные в именованном томе — обычный
 `docker compose down` их не удаляет. Backend собирается двухэтапным `Dockerfile` (Maven → лёгкий JRE, запуск не от root).
 
 ### Swagger и тесты
